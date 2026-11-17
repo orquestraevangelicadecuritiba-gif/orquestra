@@ -15,6 +15,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   addRepertoireTrack,
   listAllMusicians,
+  signInLocalDemoAccount,
   signInMusician,
   signOutMusician,
   updateMusicianAccessStatus,
@@ -97,6 +98,15 @@ export function MemberPortalModal({
   const handleSignOut = async () => {
     await signOutMusician();
     onProfileChange(null);
+  };
+
+  const handleQuickDemoAccess = (target: 'admin' | 'approved' | 'pending') => {
+    setAuthError(null);
+    const next = signInLocalDemoAccount(target);
+    onProfileChange(next);
+    if (target === 'admin') {
+      setAdminTab('upload');
+    }
   };
 
   const handleStatusUpdate = async (musicianId: string, nextStatus: AccessStatus) => {
@@ -263,17 +273,33 @@ export function MemberPortalModal({
             </form>
 
             {!isSupabaseConfigured && (
-              <div className="p-4 rounded-2xl bg-[#F3EFE7] border border-[#DED6C8] text-xs text-[#57534E] space-y-1.5">
-                <p className="font-semibold text-[#1C1917]">Contas de demonstração local:</p>
-                <p>
-                  Participante Liberado: <code className="font-mono-tabular">helena.violino@exemplo.com.br</code> / <code className="font-mono-tabular">violino123</code>
+              <div className="p-4 rounded-2xl bg-[#F3EFE7] border border-[#DED6C8] text-xs text-[#57534E] space-y-3">
+                <p className="font-semibold text-[#1C1917]">
+                  Acesso rápido de demonstração (1 clique):
                 </p>
-                <p>
-                  Participante Pendente: <code className="font-mono-tabular">lucas.trompete@exemplo.com.br</code> / <code className="font-mono-tabular">trompete123</code>
-                </p>
-                <p>
-                  Coordenação (Maestro): <code className="font-mono-tabular">orquestraevangelicadecuritiba@gmail.com</code> / <code className="font-mono-tabular">curitiba2026</code>
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoAccess('admin')}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl btn-raised-sm-primary cursor-pointer"
+                  >
+                    Entrar como Coordenação (Enviar PDFs e Repertório)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoAccess('approved')}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl btn-raised-sm-surface cursor-pointer"
+                  >
+                    Músico Liberado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoAccess('pending')}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl btn-raised-sm-surface cursor-pointer"
+                  >
+                    Músico Pendente
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -308,14 +334,27 @@ export function MemberPortalModal({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-xl btn-raised-sm-surface shrink-0 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sair</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {!isSupabaseConfigured && profile.role !== 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoAccess('admin')}
+                    className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-xl btn-raised-sm-primary shrink-0 cursor-pointer"
+                  >
+                    <FileUp className="w-4 h-4" />
+                    <span>Ir para Painel Admin (Enviar Arquivos)</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-xl btn-raised-sm-surface shrink-0 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sair</span>
+                </button>
+              </div>
             </div>
 
             {/* Painel Exclusivo da Coordenação (Admin) */}
@@ -593,16 +632,29 @@ export function MemberPortalModal({
                     </div>
 
                     <div>
-                      <label htmlFor="rep-audio" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                      <span className="block text-xs font-semibold text-[#44403C] mb-1.5">
                         Arquivo de áudio MP3 / WAV (bucket público — opcional)
+                      </span>
+                      <label
+                        htmlFor="rep-audio"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border-2 border-dashed border-[#DCD3C4] bg-[#FBF9F5] hover:border-[#1E3A5F] cursor-pointer transition-colors"
+                      >
+                        <span className="text-xs sm:text-sm text-[#44403C] truncate">
+                          {repAudioFile
+                            ? `Selecionado: ${repAudioFile.name}`
+                            : 'Clique aqui para escolher um arquivo de áudio (.mp3, .wav, .ogg)'}
+                        </span>
+                        <span className="px-3.5 py-2 text-xs font-semibold rounded-xl btn-raised-sm-surface shrink-0 text-center">
+                          Escolher Áudio
+                        </span>
+                        <input
+                          id="rep-audio"
+                          type="file"
+                          accept="audio/*"
+                          onChange={(e) => setRepAudioFile(e.target.files?.[0] ?? null)}
+                          className="sr-only"
+                        />
                       </label>
-                      <input
-                        id="rep-audio"
-                        type="file"
-                        accept="audio/*"
-                        onChange={(e) => setRepAudioFile(e.target.files?.[0] ?? null)}
-                        className="block w-full text-sm text-[#44403C] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-[#DCD3C4] file:bg-[#F3EFE7] file:text-xs file:font-semibold"
-                      />
                     </div>
 
                     <div className="flex justify-end">
@@ -665,23 +717,36 @@ export function MemberPortalModal({
                     </div>
 
                     <div>
-                      <label htmlFor="up-pdf" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                      <span className="block text-xs font-semibold text-[#44403C] mb-1.5">
                         Arquivo PDF da Partitura (bucket privado)
+                      </span>
+                      <label
+                        htmlFor="up-pdf"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border-2 border-dashed border-[#DCD3C4] bg-[#FBF9F5] hover:border-[#1E3A5F] cursor-pointer transition-colors"
+                      >
+                        <span className="text-xs sm:text-sm text-[#44403C] truncate">
+                          {uploadFile
+                            ? `Selecionado: ${uploadFile.name}`
+                            : 'Clique aqui para selecionar o arquivo .pdf da partitura'}
+                        </span>
+                        <span className="px-3.5 py-2 text-xs font-semibold rounded-xl btn-raised-sm-surface shrink-0 text-center">
+                          Escolher PDF
+                        </span>
+                        <input
+                          id="up-pdf"
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                          className="sr-only"
+                        />
                       </label>
-                      <input
-                        id="up-pdf"
-                        type="file"
-                        accept="application/pdf"
-                        onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                        className="block w-full text-sm text-[#44403C] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-[#DCD3C4] file:bg-[#F3EFE7] file:text-xs file:font-semibold"
-                      />
                     </div>
 
                     <div className="flex justify-end">
                       <button
                         type="submit"
                         disabled={loading}
-                        className="px-5 py-2.5 text-sm font-semibold rounded-2xl btn-raised-primary cursor-pointer"
+                        className="px-5 py-2.5 text-sm font-semibold rounded-2xl btn-raised-primary cursor-pointer disabled:opacity-60"
                       >
                         {loading ? 'Enviando...' : 'Salvar Partitura Privada'}
                       </button>

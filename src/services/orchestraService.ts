@@ -11,13 +11,15 @@ const STORAGE_KEYS = {
   PASSWORDS: 'oec_local_passwords_v1',
 };
 
+const localUploadedPdfFiles = new Map<string, File>();
+
 const SEED_LOCAL_PROFILES: MusicianProfile[] = [
   {
     id: 'local-admin-maestro',
     full_name: 'Coordenação & Regência OEC',
     email: 'orquestraevangelicadecuritiba@gmail.com',
     phone: '(41) 99900-1000',
-    instrument: 'Piano / Teclado & Grade',
+    instrument: 'Grade Completa (Regência)',
     naipe: 'Percussão & Base',
     church: 'Sede Central Curitiba',
     experience_years: '15+ anos',
@@ -235,6 +237,33 @@ export async function signOutMusician(): Promise<void> {
   localStorage.removeItem(STORAGE_KEYS.SESSION_USER_ID);
 }
 
+export function signInLocalDemoAccount(
+  target: 'admin' | 'approved' | 'pending'
+): MusicianProfile {
+  const profiles = getLocalProfiles();
+  let match =
+    target === 'admin'
+      ? profiles.find((p) => p.role === 'admin')
+      : target === 'approved'
+      ? profiles.find((p) => p.role === 'musician' && p.access_status === 'approved')
+      : profiles.find((p) => p.role === 'musician' && p.access_status === 'pending');
+
+  if (!match) {
+    const seed =
+      target === 'admin'
+        ? SEED_LOCAL_PROFILES[0]
+        : target === 'approved'
+        ? SEED_LOCAL_PROFILES[1]
+        : SEED_LOCAL_PROFILES[2];
+    profiles.unshift(seed);
+    saveLocalProfiles(profiles);
+    match = seed;
+  }
+
+  localStorage.setItem(STORAGE_KEYS.SESSION_USER_ID, match.id);
+  return match;
+}
+
 export async function fetchPublicRepertoire(): Promise<RepertoireTrack[]> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
@@ -309,6 +338,11 @@ export async function downloadPrivateSheetPdf(
     if (!error && data?.signedUrl) {
       return { url: data.signedUrl };
     }
+  }
+
+  const localFile = localUploadedPdfFiles.get(part.file_path);
+  if (localFile) {
+    return { url: URL.createObjectURL(localFile) };
   }
 
   // Gera o PDF real da partitura quando o bucket ainda não possui o arquivo binário enviado
@@ -399,13 +433,16 @@ export async function uploadPrivateSheetPdf(
     role: 'admin',
     created_at: '',
   });
+  const localPath = `local/${Date.now()}-${file.name}`;
+  localUploadedPdfFiles.set(localPath, file);
+
   const newPart: SheetMusicPart = {
     id: `part-custom-${Date.now()}`,
     repertoire_id: repertoireId,
     instrument,
     naipe,
     part_label: `${instrument} — ${file.name.replace(/\.pdf$/i, '')}`,
-    file_path: `local/${file.name}`,
+    file_path: localPath,
     pages_count: 2,
     updated_at: new Date().toISOString().slice(0, 10),
   };

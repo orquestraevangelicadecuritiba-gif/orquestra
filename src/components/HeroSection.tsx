@@ -92,7 +92,7 @@ export function HeroSection() {
             <p className="mt-0.5 text-xs text-[#57534E]">Somente participantes liberados</p>
           </div>
           <div>
-            <p className="font-mono-tabular text-2xl sm:text-3xl font-semibold text-[#1E3A5F]">17</p>
+            <p className="font-mono-tabular text-2xl sm:text-3xl font-semibold text-[#1E3A5F]">18</p>
             <p className="mt-1 text-sm font-semibold text-[#1C1917]">Partes por Instrumento</p>
             <p className="mt-0.5 text-xs text-[#57534E]">Edição revisada para ensaios</p>
           </div>

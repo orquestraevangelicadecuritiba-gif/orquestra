@@ -19,10 +19,11 @@ export const ORCHESTRA_INSTRUMENTS: InstrumentDefinition[] = [
   { id: 'trompete-bb', name: 'Trompete Bb', naipe: 'Metais', clef: 'Clave de Sol', transposition: 'Em Si Bemol (Bb)', standNote: 'Trompete I / II para fanfarras e tutti' },
   { id: 'trompa-f', name: 'Trompa em F', naipe: 'Metais', clef: 'Clave de Sol', transposition: 'Em Fá (F)', standNote: 'Trompa I / II — ponte entre madeiras e metais' },
   { id: 'trombone', name: 'Trombone Tenor / Baixo', naipe: 'Metais', clef: 'Clave de Fá', transposition: 'Em Dó (C)', standNote: 'Trombone I / II / III em coral harmônico' },
-  { id: 'tuba', name: 'Tuba / Bombardino', naipe: 'Metais', clef: 'Clave de Fá', transposition: 'Em Dó (C)', standNote: 'Base acústica solene dos metais' },
+  { id: 'tuba', name: 'Tuba', naipe: 'Metais', clef: 'Clave de Fá', transposition: 'Em Dó (C)', standNote: 'Base acústica solene dos metais' },
 
   { id: 'timpanos', name: 'Tímpanos & Percussão', naipe: 'Percussão & Base', clef: 'Clave de Fá / Rítmica', transposition: 'Afinação sinfônica', standNote: 'Tímpanos, pratos sinfônicos e caixa' },
-  { id: 'piano', name: 'Piano / Teclado & Grade', naipe: 'Percussão & Base', clef: 'Clave de Sol e Fá', transposition: 'Em Dó (C)', standNote: 'Redução orquestral e acompanhamento' },
+  { id: 'piano', name: 'Piano / Teclado', naipe: 'Percussão & Base', clef: 'Clave de Sol e Fá', transposition: 'Em Dó (C)', standNote: 'Redução orquestral e acompanhamento' },
+  { id: 'grade', name: 'Grade Completa (Regência)', naipe: 'Percussão & Base', clef: 'Todas as Claves', transposition: 'Partitura Geral', standNote: 'Partitura completa com todos os naipes da orquestra' },
 ];
 
 export const INITIAL_REPERTOIRE: RepertoireTrack[] = [
@@ -139,7 +140,7 @@ export const INITIAL_SHEET_MUSIC: SheetMusicPart[] = INITIAL_REPERTOIRE.flatMap(
     naipe: inst.naipe,
     part_label: `${track.code} — ${inst.name}`,
     file_path: `${track.code.toLowerCase()}/${inst.id}.pdf`,
-    pages_count: inst.id === 'piano' ? 6 : 2 + ((trackIdx + instIdx) % 3),
+    pages_count: inst.id === 'grade' ? 14 : inst.id === 'piano' ? 4 : 2 + ((trackIdx + instIdx) % 3),
     updated_at: '2026-11-10',
   }))
 );
