@@ -412,3 +412,87 @@ export async function uploadPrivateSheetPdf(
   localStorage.setItem(STORAGE_KEYS.SHEETS, JSON.stringify([newPart, ...current]));
   return { ok: true };
 }
+
+export interface AddRepertoirePayload {
+  code: string;
+  title: string;
+  composer: string;
+  arranger: string;
+  category: RepertoireTrack['category'];
+  key_signature: string;
+  tempo_bpm: number;
+  duration_seconds: number;
+  description: string;
+  audioFile?: File | null;
+}
+
+export async function addRepertoireTrack(
+  payload: AddRepertoirePayload
+): Promise<{ ok: boolean; error?: string }> {
+  const cleanCode = payload.code.trim().toUpperCase();
+
+  if (isSupabaseConfigured && supabase) {
+    let publicAudioUrl: string | null = null;
+
+    if (payload.audioFile) {
+      const ext = payload.audioFile.name.split('.').pop()?.toLowerCase() || 'mp3';
+      const storagePath = `${cleanCode.toLowerCase()}-${Date.now()}.${ext}`;
+      const { error: audioErr } = await supabase.storage
+        .from('audios')
+        .upload(storagePath, payload.audioFile, {
+          contentType: payload.audioFile.type || 'audio/mpeg',
+          upsert: true,
+        });
+
+      if (audioErr) {
+        return { ok: false, error: `Erro ao enviar áudio: ${audioErr.message}` };
+      }
+
+      const { data: pubData } = supabase.storage.from('audios').getPublicUrl(storagePath);
+      publicAudioUrl = pubData.publicUrl;
+    }
+
+    const { error: insertErr } = await supabase.from('repertoire').insert({
+      code: cleanCode,
+      title: payload.title.trim(),
+      composer: payload.composer.trim(),
+      arranger: payload.arranger.trim(),
+      category: payload.category,
+      key_signature: payload.key_signature.trim(),
+      tempo_bpm: payload.tempo_bpm,
+      duration_seconds: payload.duration_seconds,
+      audio_url: publicAudioUrl,
+      description: payload.description.trim(),
+      is_public: true,
+      sort_order: 99,
+    });
+
+    if (insertErr) {
+      return { ok: false, error: insertErr.message };
+    }
+    return { ok: true };
+  }
+
+  // Modo demonstração local
+  const current = await fetchPublicRepertoire();
+  const localAudioUrl = payload.audioFile ? URL.createObjectURL(payload.audioFile) : null;
+  const newTrack: RepertoireTrack = {
+    id: `rep-${Date.now()}`,
+    code: cleanCode,
+    title: payload.title.trim(),
+    composer: payload.composer.trim(),
+    arranger: payload.arranger.trim(),
+    category: payload.category,
+    key_signature: payload.key_signature.trim(),
+    tempo_bpm: payload.tempo_bpm,
+    duration_seconds: payload.duration_seconds,
+    audio_url: localAudioUrl,
+    description: payload.description.trim(),
+    is_public: true,
+    sort_order: current.length + 1,
+    melody_notes: INITIAL_REPERTOIRE[0]?.melody_notes,
+  };
+  localStorage.setItem(STORAGE_KEYS.REPERTOIRE, JSON.stringify([...current, newTrack]));
+  return { ok: true };
+}
+

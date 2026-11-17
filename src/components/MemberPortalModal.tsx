@@ -1,6 +1,7 @@
 import {
   Check,
   Clock,
+  Disc3,
   FileUp,
   LogOut,
   ShieldAlert,
@@ -12,6 +13,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { NAIPES, ORCHESTRA_INSTRUMENTS } from '../data/orchestraCatalog';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
+  addRepertoireTrack,
   listAllMusicians,
   signInMusician,
   signOutMusician,
@@ -43,13 +45,25 @@ export function MemberPortalModal({
   const [loading, setLoading] = useState(false);
 
   // Admin state
-  const [adminTab, setAdminTab] = useState<'members' | 'upload' | 'deploy'>('members');
+  const [adminTab, setAdminTab] = useState<'members' | 'repertoire' | 'upload' | 'deploy'>('members');
   const [members, setMembers] = useState<MusicianProfile[]>([]);
   const [memberFilter, setMemberFilter] = useState<'all' | 'pending' | 'approved'>('all');
   const [uploadTrackId, setUploadTrackId] = useState(tracks[0]?.id ?? '');
   const [uploadInstrument, setUploadInstrument] = useState('Violino I');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
+
+  // Novo Repertório state
+  const [repCode, setRepCode] = useState('');
+  const [repTitle, setRepTitle] = useState('');
+  const [repComposer, setRepComposer] = useState('');
+  const [repArranger, setRepArranger] = useState('Arr. Orquestra Evangélica de Curitiba');
+  const [repCategory, setRepCategory] = useState<RepertoireTrack['category']>('Louvor Sinfônico');
+  const [repKey, setRepKey] = useState('Dó Maior');
+  const [repBpm, setRepBpm] = useState(76);
+  const [repDuration, setRepDuration] = useState(210);
+  const [repDesc, setRepDesc] = useState('');
+  const [repAudioFile, setRepAudioFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (open && profile?.role === 'admin') {
@@ -117,6 +131,38 @@ export function MemberPortalModal({
 
     setUploadFile(null);
     setAdminMessage('Partitura PDF adicionada ao acervo privado com sucesso!');
+    onSheetsUpdated();
+  };
+
+  const handleAddRepertoire = async (e: FormEvent) => {
+    e.preventDefault();
+    setAdminMessage(null);
+    setLoading(true);
+    const res = await addRepertoireTrack({
+      code: repCode,
+      title: repTitle,
+      composer: repComposer,
+      arranger: repArranger,
+      category: repCategory,
+      key_signature: repKey,
+      tempo_bpm: Number(repBpm) || 76,
+      duration_seconds: Number(repDuration) || 210,
+      description: repDesc,
+      audioFile: repAudioFile,
+    });
+    setLoading(false);
+
+    if (!res.ok) {
+      setAdminMessage(res.error ?? 'Erro ao publicar obra no repertório.');
+      return;
+    }
+
+    setRepCode('');
+    setRepTitle('');
+    setRepComposer('');
+    setRepDesc('');
+    setRepAudioFile(null);
+    setAdminMessage('Obra e áudio adicionados ao repertório público com sucesso!');
     onSheetsUpdated();
   };
 
@@ -289,6 +335,17 @@ export function MemberPortalModal({
 
                   <button
                     type="button"
+                    onClick={() => setAdminTab('repertoire')}
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl cursor-pointer ${
+                      adminTab === 'repertoire' ? 'btn-raised-sm-primary' : 'btn-raised-sm-surface'
+                    }`}
+                  >
+                    <Disc3 className="w-4 h-4" />
+                    <span>Subir Repertório</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setAdminTab('upload')}
                     className={`inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl cursor-pointer ${
                       adminTab === 'upload' ? 'btn-raised-sm-primary' : 'btn-raised-sm-surface'
@@ -392,6 +449,172 @@ export function MemberPortalModal({
                       ))}
                     </div>
                   </div>
+                )}
+
+                {adminTab === 'repertoire' && (
+                  <form
+                    onSubmit={handleAddRepertoire}
+                    className="p-5 rounded-2xl bg-white border border-[#E7E0D3] space-y-4"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label htmlFor="rep-code" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Código *
+                        </label>
+                        <input
+                          id="rep-code"
+                          type="text"
+                          required
+                          value={repCode}
+                          onChange={(e) => setRepCode(e.target.value)}
+                          placeholder="Ex.: OEC-07"
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label htmlFor="rep-title" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Título da obra *
+                        </label>
+                        <input
+                          id="rep-title"
+                          type="text"
+                          required
+                          value={repTitle}
+                          onChange={(e) => setRepTitle(e.target.value)}
+                          placeholder="Ex.: Aleluia (Messias)"
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="rep-composer" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Compositor *
+                        </label>
+                        <input
+                          id="rep-composer"
+                          type="text"
+                          required
+                          value={repComposer}
+                          onChange={(e) => setRepComposer(e.target.value)}
+                          placeholder="Nome do compositor"
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="rep-arranger" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Arranjador *
+                        </label>
+                        <input
+                          id="rep-arranger"
+                          type="text"
+                          required
+                          value={repArranger}
+                          onChange={(e) => setRepArranger(e.target.value)}
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div className="sm:col-span-2">
+                        <label htmlFor="rep-cat" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Categoria
+                        </label>
+                        <select
+                          id="rep-cat"
+                          value={repCategory}
+                          onChange={(e) => setRepCategory(e.target.value as RepertoireTrack['category'])}
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        >
+                          <option value="Hinos Clássicos">Hinos Clássicos</option>
+                          <option value="Louvor Sinfônico">Louvor Sinfônico</option>
+                          <option value="Suíte Orquestral">Suíte Orquestral</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="rep-key" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          Tonalidade
+                        </label>
+                        <input
+                          id="rep-key"
+                          type="text"
+                          required
+                          value={repKey}
+                          onChange={(e) => setRepKey(e.target.value)}
+                          className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="rep-bpm" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                          BPM / Duração (s)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            id="rep-bpm"
+                            type="number"
+                            min={40}
+                            max={220}
+                            value={repBpm}
+                            onChange={(e) => setRepBpm(Number(e.target.value))}
+                            aria-label="Andamento em BPM"
+                            className="w-full px-2.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                          />
+                          <input
+                            type="number"
+                            min={30}
+                            max={1800}
+                            value={repDuration}
+                            onChange={(e) => setRepDuration(Number(e.target.value))}
+                            aria-label="Duração em segundos"
+                            className="w-full px-2.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="rep-desc" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                        Notas da obra para o público e músicos
+                      </label>
+                      <textarea
+                        id="rep-desc"
+                        rows={2}
+                        value={repDesc}
+                        onChange={(e) => setRepDesc(e.target.value)}
+                        placeholder="Ex.: Execução solene com entrada de cordas e coro de metais."
+                        className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-[#FBF9F5]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="rep-audio" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                        Arquivo de áudio MP3 / WAV (bucket público — opcional)
+                      </label>
+                      <input
+                        id="rep-audio"
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => setRepAudioFile(e.target.files?.[0] ?? null)}
+                        className="block w-full text-sm text-[#44403C] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-[#DCD3C4] file:bg-[#F3EFE7] file:text-xs file:font-semibold"
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-5 py-2.5 text-sm font-semibold rounded-2xl btn-raised-primary cursor-pointer disabled:opacity-60"
+                      >
+                        {loading ? 'Publicando...' : 'Publicar no Repertório Público'}
+                      </button>
+                    </div>
+                  </form>
                 )}
 
                 {adminTab === 'upload' && (
