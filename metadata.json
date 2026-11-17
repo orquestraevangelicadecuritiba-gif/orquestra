@@ -1,0 +1,6 @@
+{
+  "name": "Orquestra Evangélica de Curitiba",
+  "description": "Portal oficial da Orquestra Evangélica de Curitiba: inscrição de músicos, audição pública do repertório e acervo privado de partituras por instrumento.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
