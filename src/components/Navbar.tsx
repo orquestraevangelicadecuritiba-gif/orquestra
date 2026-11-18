@@ -60,7 +60,7 @@ export function Navbar({ profile, onOpenPortal }: NavbarProps) {
           <button
             type="button"
             onClick={onOpenPortal}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-2xl btn-raised-primary whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-2xl btn-raised-primary whitespace-nowrap shrink-0 cursor-pointer"
           >
             {profile ? (
               <>
@@ -69,12 +69,12 @@ export function Navbar({ profile, onOpenPortal }: NavbarProps) {
                 ) : (
                   <LockKeyhole className="w-4 h-4 shrink-0" aria-hidden="true" />
                 )}
-                <span className="max-w-[140px] truncate">{firstName}</span>
+                <span className="max-w-[120px] sm:max-w-[140px] truncate">{firstName}</span>
               </>
             ) : (
               <>
                 <LockKeyhole className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>Área do Músico</span>
+                <span>Entrar / Coordenação</span>
               </>
             )}
           </button>
@@ -130,7 +130,7 @@ export function Navbar({ profile, onOpenPortal }: NavbarProps) {
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-2xl btn-raised-primary cursor-pointer"
             >
               <LockKeyhole className="w-4 h-4" />
-              <span>{profile ? `Conta: ${firstName}` : 'Área do Músico'}</span>
+              <span>{profile ? `Conta: ${firstName}` : 'Entrar / Coordenação'}</span>
             </button>
           </div>
         </div>

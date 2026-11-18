@@ -22,6 +22,7 @@ export default function App() {
   const [sheets, setSheets] = useState<SheetMusicPart[]>(INITIAL_SHEET_MUSIC);
   const [selectedTrackId, setSelectedTrackId] = useState<string>('all');
   const [portalOpen, setPortalOpen] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const [pdfPreview, setPdfPreview] = useState<{
     url: string | null;
@@ -55,7 +56,11 @@ export default function App() {
     void init();
 
     if (isSupabaseConfigured && supabase) {
-      const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setRecoveryMode(true);
+          setPortalOpen(true);
+        }
         void getCurrentSessionProfile().then((nextProfile) => {
           if (!mounted) return;
           setProfile(nextProfile);
@@ -130,9 +135,14 @@ export default function App() {
 
       <MemberPortalModal
         open={portalOpen}
-        onClose={() => setPortalOpen(false)}
+        onClose={() => {
+          setPortalOpen(false);
+          setRecoveryMode(false);
+        }}
         profile={profile}
         tracks={tracks}
+        recoveryMode={recoveryMode}
+        onRecoveryDone={() => setRecoveryMode(false)}
         onProfileChange={handleProfileChange}
         onSheetsUpdated={() => void refreshArchive(profile)}
       />

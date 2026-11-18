@@ -15,10 +15,12 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   addRepertoireTrack,
   listAllMusicians,
+  requestPasswordReset,
   signInLocalDemoAccount,
   signInMusician,
   signOutMusician,
   updateMusicianAccessStatus,
+  updateUserPassword,
   uploadPrivateSheetPdf,
 } from '../services/orchestraService';
 import { AccessStatus, MusicianProfile, Naipe, RepertoireTrack } from '../types/orchestra';
@@ -28,6 +30,8 @@ interface MemberPortalModalProps {
   onClose: () => void;
   profile: MusicianProfile | null;
   tracks: RepertoireTrack[];
+  recoveryMode?: boolean;
+  onRecoveryDone?: () => void;
   onProfileChange: (profile: MusicianProfile | null) => void;
   onSheetsUpdated: () => void;
 }
@@ -37,12 +41,16 @@ export function MemberPortalModal({
   onClose,
   profile,
   tracks,
+  recoveryMode = false,
+  onRecoveryDone,
   onProfileChange,
   onSheetsUpdated,
 }: MemberPortalModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Admin state
@@ -83,6 +91,7 @@ export function MemberPortalModal({
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+    setAuthInfo(null);
     setLoading(true);
     const res = await signInMusician(email, password);
     setLoading(false);
@@ -93,6 +102,35 @@ export function MemberPortalModal({
     onProfileChange(res.profile);
     setEmail('');
     setPassword('');
+  };
+
+  const handleForgotPassword = async () => {
+    setAuthError(null);
+    setAuthInfo(null);
+    setLoading(true);
+    const res = await requestPasswordReset(email);
+    setLoading(false);
+    if (!res.ok) {
+      setAuthError(res.error ?? 'Não foi possível enviar o e-mail de recuperação.');
+      return;
+    }
+    setAuthInfo('Link de redefinição enviado! Verifique sua caixa de entrada e spam.');
+  };
+
+  const handleSaveNewPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthInfo(null);
+    setLoading(true);
+    const res = await updateUserPassword(newPassword);
+    setLoading(false);
+    if (!res.ok) {
+      setAuthError(res.error ?? 'Não foi possível atualizar a senha.');
+      return;
+    }
+    setNewPassword('');
+    setAuthInfo('Nova senha salva com sucesso!');
+    onRecoveryDone?.();
   };
 
   const handleSignOut = async () => {
@@ -222,6 +260,15 @@ export function MemberPortalModal({
               </div>
             )}
 
+            {authInfo && (
+              <div
+                role="status"
+                className="px-4 py-3 rounded-2xl bg-[#EFF6F1] border border-[#BFE0C9] text-sm text-[#14532D]"
+              >
+                {authInfo}
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label htmlFor="modal-login-email" className="block text-xs font-semibold text-[#44403C] mb-1.5">
@@ -239,9 +286,19 @@ export function MemberPortalModal({
               </div>
 
               <div>
-                <label htmlFor="modal-login-pass" className="block text-xs font-semibold text-[#44403C] mb-1.5">
-                  Senha
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="modal-login-pass" className="block text-xs font-semibold text-[#44403C]">
+                    Senha
+                  </label>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={handleForgotPassword}
+                    className="text-xs font-medium text-[#1E3A5F] hover:underline cursor-pointer"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
                 <input
                   id="modal-login-pass"
                   type="password"
@@ -305,6 +362,37 @@ export function MemberPortalModal({
           </div>
         ) : (
           <div className="mt-6 space-y-6">
+            {recoveryMode && (
+              <form
+                onSubmit={handleSaveNewPassword}
+                className="p-5 rounded-2xl bg-[#FDF8EE] border border-[#E6D3A8] space-y-3"
+              >
+                <p className="text-sm font-semibold text-[#1C1917]">
+                  Definir nova senha de acesso
+                </p>
+                {authError && <p className="text-xs text-[#991B1B]">{authError}</p>}
+                {authInfo && <p className="text-xs text-[#14532D]">{authInfo}</p>}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Digite sua nova senha (mín. 6 caracteres)"
+                    className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-[#DCD3C4] bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-raised-sm-primary cursor-pointer"
+                  >
+                    Salvar Nova Senha
+                  </button>
+                </div>
+              </form>
+            )}
+
             {/* Resumo do Perfil Logado */}
             <div className="p-5 rounded-2xl bg-white border border-[#E7E0D3] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>

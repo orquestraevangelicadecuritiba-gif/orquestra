@@ -1,8 +1,8 @@
-import { CheckCircle2, KeyRound, LockKeyhole, UserPlus } from 'lucide-react';
+import { CheckCircle2, KeyRound, LockKeyhole, ShieldCheck, UserPlus } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { NAIPES, ORCHESTRA_INSTRUMENTS } from '../data/orchestraCatalog';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
-import { signInMusician, signUpMusician } from '../services/orchestraService';
+import { signInLocalDemoAccount, signInMusician, signUpMusician } from '../services/orchestraService';
 import { MusicianProfile, Naipe } from '../types/orchestra';
 
 interface MusicianRegistrationSectionProps {
@@ -16,7 +16,7 @@ export function MusicianRegistrationSection({
   onAuthenticated,
   onOpenPortal,
 }: MusicianRegistrationSectionProps) {
-  const [mode, setMode] = useState<'register' | 'login'>('register');
+  const [mode, setMode] = useState<'register' | 'login' | 'admin'>('register');
 
   // Campos de inscrição
   const [fullName, setFullName] = useState('');
@@ -102,13 +102,18 @@ export function MusicianRegistrationSection({
       return;
     }
     onAuthenticated(res.profile);
+    if (res.profile.role === 'admin') {
+      onOpenPortal();
+    }
   };
 
-  const quickFillDemo = (demoEmail: string, demoPass: string) => {
-    setMode('login');
-    setLoginEmail(demoEmail);
-    setLoginPassword(demoPass);
+  const handleDemoDirectLogin = (target: 'admin' | 'approved' | 'pending') => {
     setErrorMsg(null);
+    const next = signInLocalDemoAccount(target);
+    onAuthenticated(next);
+    if (target === 'admin') {
+      onOpenPortal();
+    }
   };
 
   return (
@@ -160,28 +165,26 @@ export function MusicianRegistrationSection({
                   Ambiente de Demonstração Interativa
                 </p>
                 <p className="mt-1.5 text-xs text-[#57534E] leading-relaxed">
-                  Conecte seu projeto Supabase no arquivo <code className="font-mono-tabular">.env</code> para persistência em nuvem. Para testar os níveis de permissão agora, preencha um dos perfis abaixo:
+                  A pré-visualização ainda não está conectada ao seu projeto Supabase. Clique em um dos perfis abaixo para entrar com 1 clique:
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => quickFillDemo('helena.violino@exemplo.com.br', 'violino123')}
+                    onClick={() => handleDemoDirectLogin('approved')}
                     className="px-3 py-1.5 text-xs font-medium rounded-xl btn-raised-sm-surface cursor-pointer"
                   >
                     Músico Liberado
                   </button>
                   <button
                     type="button"
-                    onClick={() => quickFillDemo('lucas.trompete@exemplo.com.br', 'trompete123')}
+                    onClick={() => handleDemoDirectLogin('pending')}
                     className="px-3 py-1.5 text-xs font-medium rounded-xl btn-raised-sm-surface cursor-pointer"
                   >
                     Músico Pendente
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      quickFillDemo('orquestraevangelicadecuritiba@gmail.com', 'curitiba2026')
-                    }
+                    onClick={() => handleDemoDirectLogin('admin')}
                     className="px-3 py-1.5 text-xs font-medium rounded-xl btn-raised-sm-primary cursor-pointer"
                   >
                     Coordenação (Admin)
@@ -261,6 +264,20 @@ export function MusicianRegistrationSection({
                       >
                         <KeyRound className="w-4 h-4" />
                         <span>Já sou Inscrito</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('admin');
+                          setErrorMsg(null);
+                        }}
+                        className={`inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl cursor-pointer ${
+                          mode === 'admin' ? 'btn-raised-sm-primary' : 'btn-raised-sm-surface'
+                        }`}
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Coordenação</span>
                       </button>
                     </div>
                   </div>
@@ -436,7 +453,7 @@ export function MusicianRegistrationSection({
                         </button>
                       </div>
                     </form>
-                  ) : (
+                  ) : mode === 'login' ? (
                     <form onSubmit={handleLogin} className="mt-6 space-y-5">
                       <div>
                         <label htmlFor="login-email" className="block text-xs font-semibold text-[#44403C] mb-1.5">
@@ -468,17 +485,91 @@ export function MusicianRegistrationSection({
                         />
                       </div>
 
-                      <div className="pt-2 flex justify-end">
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+                        {!isSupabaseConfigured && (
+                          <button
+                            type="button"
+                            onClick={() => handleDemoDirectLogin('admin')}
+                            className="inline-flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-semibold rounded-2xl btn-raised-surface cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-[#1E3A5F]" />
+                            <span>Entrar como Coordenação (1 clique)</span>
+                          </button>
+                        )}
                         <button
                           type="submit"
                           disabled={submitting}
-                          className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 text-sm sm:text-base font-semibold rounded-2xl btn-raised-primary whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 text-sm sm:text-base font-semibold rounded-2xl btn-raised-primary whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60 ml-auto"
                         >
                           <LockKeyhole className="w-4 h-4" />
                           <span>{submitting ? 'Verificando...' : 'Entrar na Área do Músico'}</span>
                         </button>
                       </div>
                     </form>
+                  ) : (
+                    <div className="mt-6 space-y-5">
+                      <div className="p-4 rounded-2xl bg-[#F3EFE7] border border-[#DED6C8] text-sm text-[#44403C] space-y-3">
+                        <p className="font-semibold text-[#1C1917]">
+                          Acesso da Coordenação &amp; Regência
+                        </p>
+                        <p className="text-xs leading-relaxed">
+                          Gerencie aprovações de músicos, publique novas obras no repertório e envie partituras privadas em PDF.
+                        </p>
+                        {!isSupabaseConfigured && (
+                          <button
+                            type="button"
+                            onClick={() => handleDemoDirectLogin('admin')}
+                            className="inline-flex items-center gap-2 px-5 py-3 text-xs sm:text-sm font-semibold rounded-2xl btn-raised-primary cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Abrir Painel da Coordenação (1 clique)</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                          <label htmlFor="admin-login-email" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                            E-mail da Coordenação
+                          </label>
+                          <input
+                            id="admin-login-email"
+                            type="email"
+                            required
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            placeholder="orquestraevangelicadecuritiba@gmail.com"
+                            className="w-full px-4 py-3 text-sm rounded-2xl border border-[#DCD3C4] bg-[#FBF9F5] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="admin-login-pass" className="block text-xs font-semibold text-[#44403C] mb-1.5">
+                            Senha
+                          </label>
+                          <input
+                            id="admin-login-pass"
+                            type="password"
+                            required
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="Sua senha do Supabase"
+                            className="w-full px-4 py-3 text-sm rounded-2xl border border-[#DCD3C4] bg-[#FBF9F5] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]"
+                          />
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 text-sm sm:text-base font-semibold rounded-2xl btn-raised-primary whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>{submitting ? 'Verificando...' : 'Entrar como Coordenação'}</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
                 </>
               )}

@@ -149,6 +149,27 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- 6b. Garantir perfil para usuários criados diretamente no painel do Supabase
+insert into public.profiles (
+  id,
+  full_name,
+  email,
+  instrument,
+  naipe,
+  access_status,
+  role
+)
+select
+  u.id,
+  coalesce(u.raw_user_meta_data->>'full_name', split_part(u.email, '@', 1)),
+  u.email,
+  coalesce(u.raw_user_meta_data->>'instrument', 'Grade Completa (Regência)'),
+  coalesce(u.raw_user_meta_data->>'naipe', 'Percussão & Base'),
+  case when lower(u.email) = 'orquestraevangelicadecuritiba@gmail.com' then 'approved' else 'pending' end,
+  case when lower(u.email) = 'orquestraevangelicadecuritiba@gmail.com' then 'admin' else 'musician' end
+from auth.users u
+on conflict (id) do nothing;
+
 -- 7. Habilitar Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.repertoire enable row level security;

@@ -58,19 +58,46 @@ const SEED_LOCAL_PROFILES: MusicianProfile[] = [
   },
 ];
 
+const memoryFallbackStorage = new Map<string, string>();
+
+function safeGetItem(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return memoryFallbackStorage.get(key) ?? null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  memoryFallbackStorage.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore SecurityError inside restricted iframes; memoryFallbackStorage holds session state
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  memoryFallbackStorage.delete(key);
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore SecurityError
+  }
+}
+
+const DEFAULT_DEMO_PASSWORDS: Record<string, string> = {
+  'orquestraevangelicadecuritiba@gmail.com': 'curitiba2026',
+  'helena.violino@exemplo.com.br': 'violino123',
+  'lucas.trompete@exemplo.com.br': 'trompete123',
+};
+
 function getLocalProfiles(): MusicianProfile[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.PROFILES);
+    const raw = safeGetItem(STORAGE_KEYS.PROFILES);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(SEED_LOCAL_PROFILES));
-      localStorage.setItem(
-        STORAGE_KEYS.PASSWORDS,
-        JSON.stringify({
-          'orquestraevangelicadecuritiba@gmail.com': 'curitiba2026',
-          'helena.violino@exemplo.com.br': 'violino123',
-          'lucas.trompete@exemplo.com.br': 'trompete123',
-        })
-      );
+      safeSetItem(STORAGE_KEYS.PROFILES, JSON.stringify(SEED_LOCAL_PROFILES));
+      safeSetItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(DEFAULT_DEMO_PASSWORDS));
       return SEED_LOCAL_PROFILES;
     }
     return JSON.parse(raw) as MusicianProfile[];
@@ -80,15 +107,19 @@ function getLocalProfiles(): MusicianProfile[] {
 }
 
 function saveLocalProfiles(profiles: MusicianProfile[]) {
-  localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
+  safeSetItem(STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
 }
 
 function getLocalPasswords(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    const raw = safeGetItem(STORAGE_KEYS.PASSWORDS);
+    if (!raw) {
+      safeSetItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(DEFAULT_DEMO_PASSWORDS));
+      return DEFAULT_DEMO_PASSWORDS;
+    }
+    return { ...DEFAULT_DEMO_PASSWORDS, ...(JSON.parse(raw) as Record<string, string>) };
   } catch {
-    return {};
+    return DEFAULT_DEMO_PASSWORDS;
   }
 }
 
@@ -118,11 +149,11 @@ export async function getCurrentSessionProfile(): Promise<MusicianProfile | null
       .from('profiles')
       .select('*')
       .eq('id', userData.user.id)
-      .single();
+      .maybeSingle();
     return (profile as MusicianProfile | null) ?? null;
   }
 
-  const uid = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
+  const uid = safeGetItem(STORAGE_KEYS.SESSION_USER_ID);
   if (!uid) return null;
   const profiles = getLocalProfiles();
   return profiles.find((p) => p.id === uid) ?? null;
@@ -193,8 +224,8 @@ export async function signUpMusician(payload: RegisterMusicianPayload): Promise<
 
   const passwords = getLocalPasswords();
   passwords[emailNorm] = payload.password;
-  localStorage.setItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(passwords));
-  localStorage.setItem(STORAGE_KEYS.SESSION_USER_ID, newProfile.id);
+  safeSetItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(passwords));
+  safeSetItem(STORAGE_KEYS.SESSION_USER_ID, newProfile.id);
 
   return { profile: newProfile };
 }
@@ -208,24 +239,51 @@ export async function signInMusician(email: string, password: string): Promise<A
       password,
     });
     if (error) {
-      return { profile: null, error: 'E-mail ou senha inválidos.' };
+      const msg = error.message.toLowerCase();
+      if (msg.includes('email not confirmed')) {
+        return {
+          profile: null,
+          error:
+            'Seu e-mail ainda não está confirmado no Supabase. Confirme pelo link enviado no seu e-mail ou clique em "Confirm user" em Authentication → Users no painel do Supabase.',
+        };
+      }
+      return {
+        profile: null,
+        error: `E-mail ou senha inválidos no Supabase (${error.message}). Verifique se a senha é a mesma definida no seu projeto Supabase.`,
+      };
     }
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single();
-    return { profile: (profile as MusicianProfile | null) ?? null };
+      .maybeSingle();
+
+    if (!profile) {
+      return {
+        profile: null,
+        error:
+          'Login confirmado no Supabase, mas seu perfil ainda não foi criado na tabela public.profiles. Execute o SQL no SQL Editor do Supabase.',
+      };
+    }
+
+    return { profile: profile as MusicianProfile };
   }
 
   const profiles = getLocalProfiles();
   const passwords = getLocalPasswords();
   const found = profiles.find((p) => p.email.toLowerCase() === emailNorm);
   if (!found || passwords[emailNorm] !== password) {
+    if (emailNorm === 'orquestraevangelicadecuritiba@gmail.com') {
+      return {
+        profile: null,
+        error:
+          'Este ambiente de pré-visualização ainda não está ligado ao seu Supabase. Clique no botão "Entrar como Coordenação" abaixo (1 clique) para abrir o painel de envio.',
+      };
+    }
     return { profile: null, error: 'E-mail ou senha inválidos.' };
   }
 
-  localStorage.setItem(STORAGE_KEYS.SESSION_USER_ID, found.id);
+  safeSetItem(STORAGE_KEYS.SESSION_USER_ID, found.id);
   return { profile: found };
 }
 
@@ -234,7 +292,55 @@ export async function signOutMusician(): Promise<void> {
     await supabase.auth.signOut();
     return;
   }
-  localStorage.removeItem(STORAGE_KEYS.SESSION_USER_ID);
+  safeRemoveItem(STORAGE_KEYS.SESSION_USER_ID);
+}
+
+export async function requestPasswordReset(
+  email: string
+): Promise<{ ok: boolean; error?: string }> {
+  const emailNorm = email.trim().toLowerCase();
+  if (!emailNorm) {
+    return { ok: false, error: 'Informe o seu e-mail para recuperar a senha.' };
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await supabase.auth.resetPasswordForEmail(emailNorm, { redirectTo });
+    if (error) {
+      if (error.message.toLowerCase().includes('rate limit') || error.status === 429) {
+        return {
+          ok: false,
+          error:
+            'Limite temporário de envio de e-mails do Supabase atingido (aguarde alguns minutos ou defina a senha diretamente pelo SQL Editor do Supabase).',
+        };
+      }
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    error: 'No modo de demonstração local, use o botão de acesso com 1 clique abaixo.',
+  };
+}
+
+export async function updateUserPassword(
+  newPassword: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (newPassword.length < 6) {
+    return { ok: false, error: 'A nova senha deve ter pelo menos 6 caracteres.' };
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  }
+
+  return { ok: true };
 }
 
 export function signInLocalDemoAccount(
@@ -260,7 +366,7 @@ export function signInLocalDemoAccount(
     match = seed;
   }
 
-  localStorage.setItem(STORAGE_KEYS.SESSION_USER_ID, match.id);
+  safeSetItem(STORAGE_KEYS.SESSION_USER_ID, match.id);
   return match;
 }
 
@@ -280,13 +386,13 @@ export async function fetchPublicRepertoire(): Promise<RepertoireTrack[]> {
     }
   }
 
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.REPERTOIRE);
-    if (raw) {
+  const raw = safeGetItem(STORAGE_KEYS.REPERTOIRE);
+  if (raw) {
+    try {
       return JSON.parse(raw) as RepertoireTrack[];
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
   return INITIAL_REPERTOIRE;
 }
@@ -305,13 +411,13 @@ export async function fetchSheetMusicArchive(profile: MusicianProfile | null): P
     }
   }
 
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SHEETS);
-    if (raw) {
+  const raw = safeGetItem(STORAGE_KEYS.SHEETS);
+  if (raw) {
+    try {
       return JSON.parse(raw) as SheetMusicPart[];
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
   return INITIAL_SHEET_MUSIC;
 }
@@ -446,7 +552,7 @@ export async function uploadPrivateSheetPdf(
     pages_count: 2,
     updated_at: new Date().toISOString().slice(0, 10),
   };
-  localStorage.setItem(STORAGE_KEYS.SHEETS, JSON.stringify([newPart, ...current]));
+  safeSetItem(STORAGE_KEYS.SHEETS, JSON.stringify([newPart, ...current]));
   return { ok: true };
 }
 
@@ -529,7 +635,7 @@ export async function addRepertoireTrack(
     sort_order: current.length + 1,
     melody_notes: INITIAL_REPERTOIRE[0]?.melody_notes,
   };
-  localStorage.setItem(STORAGE_KEYS.REPERTOIRE, JSON.stringify([...current, newTrack]));
+  safeSetItem(STORAGE_KEYS.REPERTOIRE, JSON.stringify([...current, newTrack]));
   return { ok: true };
 }
 
